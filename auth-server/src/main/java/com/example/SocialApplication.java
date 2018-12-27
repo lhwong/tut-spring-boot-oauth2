@@ -34,8 +34,11 @@ import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.oauth2.client.OAuth2ClientContext;
 import org.springframework.security.oauth2.client.OAuth2RestTemplate;
 import org.springframework.security.oauth2.client.filter.OAuth2ClientAuthenticationProcessingFilter;
@@ -45,7 +48,6 @@ import org.springframework.security.oauth2.config.annotation.web.configuration.E
 import org.springframework.security.oauth2.config.annotation.web.configuration.EnableOAuth2Client;
 import org.springframework.security.oauth2.config.annotation.web.configuration.EnableResourceServer;
 import org.springframework.security.oauth2.config.annotation.web.configuration.ResourceServerConfigurerAdapter;
-import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
 import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -68,16 +70,47 @@ public class SocialApplication extends WebSecurityConfigurerAdapter {
 		map.put("name", principal.getName());
 		return map;
 	}
+	
+	
+	
+	@Autowired
+    private BCryptPasswordEncoder passwordEncoder;
+
+    @Autowired
+    public void globalUserDetails(final AuthenticationManagerBuilder auth) throws Exception {
+        // @formatter:off
+	auth.inMemoryAuthentication()
+	  .withUser("john").password(passwordEncoder.encode("123")).roles("USER").and()
+	  .withUser("tom").password(passwordEncoder.encode("111")).roles("ADMIN").and()
+	  .withUser("user1").password(passwordEncoder.encode("pass")).roles("USER").and()
+	  .withUser("admin").password(passwordEncoder.encode("nimda")).roles("ADMIN");
+    }// @formatter:on
+
+    @Bean
+    public BCryptPasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+	
+	@Override
+    @Bean
+    public AuthenticationManager authenticationManagerBean() throws Exception {
+        return super.authenticationManagerBean();
+    }
+	
+	
 
 	@Override
 	protected void configure(HttpSecurity http) throws Exception {
 		// @formatter:off
-		http.antMatcher("/**").authorizeRequests().antMatchers("/", "/login**", "/webjars/**").permitAll().anyRequest()
-				.authenticated().and().exceptionHandling()
-				.authenticationEntryPoint(new LoginUrlAuthenticationEntryPoint("/")).and().logout()
-				.logoutSuccessUrl("/").permitAll().and().csrf()
-				.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse()).and()
-				.addFilterBefore(ssoFilter(), BasicAuthenticationFilter.class);
+		http.antMatcher("/**").authorizeRequests().antMatchers("/", "/login**", "/webjars/**").permitAll()
+		//http.authorizeRequests().antMatchers("/", "/login**", "/webjars/**").permitAll()
+				.anyRequest().authenticated()
+				.and().formLogin().loginPage("/login").permitAll()
+				.and().exceptionHandling()
+				//.authenticationEntryPoint(new LoginUrlAuthenticationEntryPoint("/"))
+				.and().logout().logoutSuccessUrl("/").permitAll()
+				.and().csrf().csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+				.and().addFilterBefore(ssoFilter(), BasicAuthenticationFilter.class);
 		// @formatter:on
 	}
 
